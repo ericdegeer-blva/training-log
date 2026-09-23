@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Training Log</title>
+<style>
+  @font-face {
+    font-family: 'system';
+  }
+  :root {
+    --ink: #1a1d1a;
+    --paper: #f6f5f1;
+    --line: #d8d5cc;
+    --done: #2f5233;
+    --done-light: #e4ede5;
+    --today: #b5432b;
+    --muted: #8a8678;
+    --gold: #c9971f;
+    --gold-deep: #9c7213;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 20px 16px 48px;
+    min-height: 100vh;
+  }
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 8px 4px 20px;
+    border-bottom: 2px solid var(--ink);
+    margin-bottom: 4px;
+  }
+  h1 {
+    font-size: 21px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+  .streak {
+    font-size: 13px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .streak b { color: var(--done); font-weight: 700; }
+
+  .month-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 2px 14px;
+  }
+  .month-nav button {
+    border: none;
+    background: none;
+    font-size: 20px;
+    color: var(--ink);
+    padding: 6px 10px;
+    cursor: pointer;
+    line-height: 1;
+  }
+  .month-nav button:active { opacity: 0.5; }
+  .month-label {
+    font-size: 15px;
+    font-weight: 600;
+    text-align: center;
+    flex: 1;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 6px;
+  }
+  .dow {
+    text-align: center;
+    font-size: 10.5px;
+    color: var(--muted);
+    font-weight: 600;
+    padding-bottom: 4px;
+  }
+  .cell {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .day-btn {
+    width: 100%;
+    height: 100%;
+    border-radius: 10px;
+    border: 1.5px solid var(--line);
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ink);
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.08s ease, background 0.15s ease, border-color 0.15s ease;
+  }
+  .day-btn:active { transform: scale(0.92); }
+  .day-btn.empty { visibility: hidden; pointer-events: none; }
+  .day-btn.future { color: var(--muted); border-color: var(--line); }
+  .day-btn.today { border-color: var(--today); border-width: 2px; }
+  .day-btn.done {
+    background: var(--done);
+    border-color: var(--done);
+    color: #fff;
+  }
+  .day-btn.done .num { opacity: 0; }
+  .day-btn.gold {
+    background: linear-gradient(155deg, #e3b83f, var(--gold) 55%, var(--gold-deep));
+    border-color: var(--gold-deep);
+    box-shadow: 0 0 0 2px #fff inset, 0 2px 6px rgba(156, 114, 19, 0.4);
+  }
+  .check {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transform: scale(0.5);
+    transition: opacity 0.12s ease, transform 0.12s ease;
+  }
+  .day-btn.done .check { opacity: 1; transform: scale(1); }
+  .check svg { width: 18px; height: 18px; }
+
+  .legend {
+    display: flex;
+    gap: 16px;
+    padding: 18px 4px 0;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .legend span { display: flex; align-items: center; gap: 6px; }
+  .dot { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+  .dot.done { background: var(--done); }
+  .dot.today { border: 2px solid var(--today); }
+  .dot.gold { background: linear-gradient(155deg, #e3b83f, var(--gold-deep)); }
+
+  .footer-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 26px;
+    margin-top: 26px;
+    border-top: 1px solid var(--line);
+  }
+  .month-total {
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .month-total b { color: var(--ink); font-weight: 700; }
+  .sync {
+    font-size: 11.5px;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .sync-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--done);
+  }
+  .sync-dot.off { background: var(--muted); }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--ink);
+    color: var(--paper);
+    padding: 10px 18px;
+    border-radius: 20px;
+    font-size: 13px;
+    opacity: 0;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .gold-total {
+    font-size: 12.5px;
+    color: var(--gold-deep);
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .gold-total .dot.gold { width: 9px; height: 9px; border-radius: 3px; }
+
+  #confettiCanvas {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 999;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Training Log</h1>
+    <div class="streak" id="streak"></div>
+  </header>
+
+  <div class="month-nav">
+    <button id="prevMonth" aria-label="Previous month">‹</button>
+    <div class="month-label" id="monthLabel"></div>
+    <button id="nextMonth" aria-label="Next month">›</button>
+  </div>
+
+  <div class="grid" id="dowRow"></div>
+  <div class="grid" id="grid" style="margin-top:6px;"></div>
+
+  <div class="legend">
+    <span><i class="dot done"></i>done</span>
+    <span><i class="dot today"></i>today</span>
+    <span><i class="dot gold"></i>7-day streak</span>
+  </div>
+
+  <div class="footer-row">
+    <div class="month-total" id="monthTotal"></div>
+    <div class="gold-total"><i class="dot gold"></i><span id="goldTotal">0 gold days</span></div>
+    <div class="sync" id="syncStatus"><i class="sync-dot" id="syncDot"></i><span id="syncText">synced</span></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<canvas id="confettiCanvas"></canvas>
+
+<script>
+const STORAGE_KEY = 'training-log:days';
+let data = {}; // { "YYYY-MM-DD": true }
+let viewYear, viewMonth; // viewMonth 0-11
+let saveTimer = null;
+
+const todayDate = new Date();
+viewYear = todayDate.getFullYear();
+viewMonth = todayDate.getMonth();
+
+function fmtKey(y, m, d) {
+  return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+
+function todayKey() {
+  return fmtKey(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate());
+}
+
+async function loadData() {
+  setSyncStatus('loading');
+  try {
+    const result = await window.storage.get(STORAGE_KEY, true);
+    data = result && result.value ? JSON.parse(result.value) : {};
+    setSyncStatus('synced');
+  } catch (e) {
+    data = {};
+    setSyncStatus('local');
+  }
+  render();
+}
+
+async function persist() {
+  setSyncStatus('saving');
+  try {
+    await window.storage.set(STORAGE_KEY, JSON.stringify(data), true);
+    setSyncStatus('synced');
+  } catch (e) {
+    setSyncStatus('error');
+  }
+}
+
+function setSyncStatus(state) {
+  const dot = document.getElementById('syncDot');
+  const text = document.getElementById('syncText');
+  if (state === 'synced') { dot.classList.remove('off'); text.textContent = 'synced'; }
+  else if (state === 'saving') { dot.classList.remove('off'); text.textContent = 'saving…'; }
+  else if (state === 'loading') { dot.classList.add('off'); text.textContent = 'loading…'; }
+  else if (state === 'local') { dot.classList.add('off'); text.textContent = 'local only'; }
+  else if (state === 'error') { dot.classList.add('off'); text.textContent = 'sync failed'; }
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 1400);
+}
+
+// Returns a Set of date keys that are "gold": the 7th, 14th, 21st... day
+// of a consecutive run of done days.
+function computeGoldDays() {
+  const gold = new Set();
+  const doneKeys = Object.keys(data).filter(k => data[k]).sort();
+  if (doneKeys.length === 0) return gold;
+
+  let runStart = new Date(doneKeys[0] + 'T00:00:00');
+  let runLen = 1;
+
+  for (let i = 1; i <= doneKeys.length; i++) {
+    if (i < doneKeys.length) {
+      const prev = new Date(doneKeys[i-1] + 'T00:00:00');
+      const cur = new Date(doneKeys[i] + 'T00:00:00');
+      const diffDays = Math.round((cur - prev) / 86400000);
+      if (diffDays === 1) {
+        runLen++;
+        continue;
+      }
+    }
+    // run ended at index i-1; mark gold days within it
+    const runEndIdx = i - 1;
+    const runStartIdx = runEndIdx - runLen + 1;
+    for (let g = 7; g <= runLen; g += 7) {
+      gold.add(doneKeys[runStartIdx + g - 1]);
+    }
+    if (i < doneKeys.length) {
+      runLen = 1;
+    }
+  }
+  return gold;
+}
+
+function updateGoldTotal(goldSet) {
+  const n = goldSet.size;
+  document.getElementById('goldTotal').textContent = `${n} gold day${n === 1 ? '' : 's'}`;
+}
+
+function toggleDay(key) {
+  const wasDone = !!data[key];
+  const goldBefore = computeGoldDays();
+
+  if (wasDone) delete data[key];
+  else data[key] = true;
+
+  const goldAfter = computeGoldDays();
+
+  // re-render to refresh done/gold styling across the whole visible month
+  render();
+
+  // fire confetti if this check created a NEW gold day that wasn't gold before
+  if (!wasDone && goldAfter.has(key) && !goldBefore.has(key)) {
+    const freshBtn = document.querySelector(`[data-key="${key}"]`);
+    if (freshBtn) fireConfetti(freshBtn);
+  }
+
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(persist, 250);
+}
+
+function computeStreak() {
+  let streak = 0;
+  let d = new Date(todayDate);
+  // if today not done, start counting from yesterday (streak still "alive" until day ends)
+  if (!data[todayKey()]) {
+    d.setDate(d.getDate() - 1);
+  }
+  while (true) {
+    const key = fmtKey(d.getFullYear(), d.getMonth(), d.getDate());
+    if (data[key]) {
+      streak++;
+      d.setDate(d.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
+
+function updateStreak() {
+  const s = computeStreak();
+  const el = document.getElementById('streak');
+  el.innerHTML = s > 0 ? `<b>${s}</b> day${s === 1 ? '' : 's'} streak` : 'no streak yet';
+}
+
+function updateMonthTotal() {
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  let count = 0;
+  for (let d = 1; d <= daysInMonth; d++) {
+    if (data[fmtKey(viewYear, viewMonth, d)]) count++;
+  }
+  document.getElementById('monthTotal').innerHTML = `<b>${count}</b> of ${daysInMonth} logged`;
+}
+
+const DOW = ['S','M','T','W','T','F','S'];
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function renderDowRow() {
+  const row = document.getElementById('dowRow');
+  row.innerHTML = '';
+  DOW.forEach(d => {
+    const el = document.createElement('div');
+    el.className = 'dow';
+    el.textContent = d;
+    row.appendChild(el);
+  });
+}
+
+function render() {
+  document.getElementById('monthLabel').textContent = `${MONTHS[viewMonth]} ${viewYear}`;
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+
+  const firstDow = new Date(viewYear, viewMonth, 1).getDay();
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const tKey = todayKey();
+  const goldSet = computeGoldDays();
+
+  for (let i = 0; i < firstDow; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    const btn = document.createElement('div');
+    btn.className = 'day-btn empty';
+    cell.appendChild(btn);
+    grid.appendChild(cell);
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const key = fmtKey(viewYear, viewMonth, d);
+    const isDone = !!data[key];
+    const isToday = key === tKey;
+    const isFuture = new Date(viewYear, viewMonth, d) > todayDate && !isToday;
+    const isGold = goldSet.has(key);
+
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+
+    const btn = document.createElement('button');
+    btn.className = 'day-btn' + (isDone ? ' done' : '') + (isToday ? ' today' : '') + (isFuture ? ' future' : '') + (isGold ? ' gold' : '');
+    btn.setAttribute('aria-label', key + (isDone ? ', logged' : ', not logged') + (isGold ? ', 7-day streak milestone' : ''));
+    btn.setAttribute('data-key', key);
+
+    const num = document.createElement('span');
+    num.className = 'num';
+    num.textContent = d;
+
+    const check = document.createElement('span');
+    check.className = 'check';
+    check.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+
+    btn.appendChild(num);
+    btn.appendChild(check);
+
+    btn.addEventListener('click', () => {
+      toggleDay(key);
+      if (navigator.vibrate) navigator.vibrate(8);
+    });
+
+    cell.appendChild(btn);
+    grid.appendChild(cell);
+  }
+
+  updateStreak();
+  updateMonthTotal();
+  updateGoldTotal(goldSet);
+}
+
+// --- Confetti ---
+const confettiCanvas = document.getElementById('confettiCanvas');
+const ctx = confettiCanvas.getContext('2d');
+let confettiParticles = [];
+let confettiRAF = null;
+
+function resizeCanvas() {
+  confettiCanvas.width = window.innerWidth * devicePixelRatio;
+  confettiCanvas.height = window.innerHeight * devicePixelRatio;
+  confettiCanvas.style.width = window.innerWidth + 'px';
+  confettiCanvas.style.height = window.innerHeight + 'px';
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+const CONFETTI_COLORS = ['#c9971f', '#b5432b', '#2f5233', '#3d6ba8', '#a44fb0', '#e8963f'];
+
+function fireConfetti(originEl) {
+  const rect = originEl.getBoundingClientRect();
+  const originX = rect.left + rect.width / 2;
+  const originY = rect.top + rect.height / 2;
+
+  const count = 46;
+  for (let i = 0; i < count; i++) {
+    const angle = (Math.random() * Math.PI * 2);
+    const speed = 3 + Math.random() * 6;
+    confettiParticles.push({
+      x: originX,
+      y: originY,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 2,
+      size: 4 + Math.random() * 4,
+      color: CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)],
+      rotation: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.4,
+      life: 0,
+      maxLife: 55 + Math.random() * 25,
+      shape: Math.random() < 0.5 ? 'rect' : 'circle'
+    });
+  }
+
+  if (!confettiRAF) animateConfetti();
+}
+
+function animateConfetti() {
+  ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+  const gravity = 0.18;
+
+  confettiParticles = confettiParticles.filter(p => p.life < p.maxLife);
+
+  for (const p of confettiParticles) {
+    p.vy += gravity;
+    p.x += p.vx;
+    p.y += p.vy;
+    p.rotation += p.vr;
+    p.life++;
+
+    const alpha = 1 - (p.life / p.maxLife);
+    ctx.save();
+    ctx.globalAlpha = Math.max(alpha, 0);
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.rotation);
+    ctx.fillStyle = p.color;
+    if (p.shape === 'rect') {
+      ctx.fillRect(-p.size/2, -p.size/3, p.size, p.size * 0.66);
+    } else {
+      ctx.beginPath();
+      ctx.arc(0, 0, p.size/2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  if (confettiParticles.length > 0) {
+    confettiRAF = requestAnimationFrame(animateConfetti);
+  } else {
+    confettiRAF = null;
+  }
+}
+
+document.getElementById('prevMonth').addEventListener('click', () => {
+  viewMonth--;
+  if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+  render();
+});
+document.getElementById('nextMonth').addEventListener('click', () => {
+  viewMonth++;
+  if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+  render();
+});
+
+renderDowRow();
+loadData();
+
+// light polling so the second person's changes show up without a manual refresh
+setInterval(async () => {
+  try {
+    const result = await window.storage.get(STORAGE_KEY, true);
+    const fresh = result && result.value ? JSON.parse(result.value) : {};
+    if (JSON.stringify(fresh) !== JSON.stringify(data)) {
+      data = fresh;
+      render();
+    }
+  } catch (e) { /* ignore */ }
+}, 8000);
+</script>
+</body>
+</html>
